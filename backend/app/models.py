@@ -98,6 +98,7 @@ class Card(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "word_id", name="uq_cards_user_word"),
         Index("ix_cards_user_due", "user_id", "due_at"),
+        Index("ix_cards_user_created", "user_id", "created_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -114,6 +115,10 @@ class Card(Base):
     last_review_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     reps: Mapped[int] = mapped_column(Integer, default=0)
     lapses: Mapped[int] = mapped_column(Integer, default=0)
+    # When the word was first shown to this user; used for the daily new-word limit.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class ReviewLog(Base):
