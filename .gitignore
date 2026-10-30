@@ -15,3 +15,7 @@ dist/
 # OS / editor
 .DS_Store
 .vscode/
+
+# Logs
+*.log
+*.log.old
