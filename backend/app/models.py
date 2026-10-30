@@ -25,13 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
-
-
-class CardState(str, enum.Enum):
-    new = "new"
-    learning = "learning"
-    review = "review"
-    relearning = "relearning"
+from app.srs import CardState  # the scheduler owns the list of states
 
 
 class QuizType(str, enum.Enum):
@@ -112,8 +106,10 @@ class Card(Base):
     state: Mapped[CardState] = mapped_column(
         Enum(CardState, name="card_state"), default=CardState.new
     )
-    stability: Mapped[float] = mapped_column(Float, default=0.0)
-    difficulty: Mapped[float] = mapped_column(Float, default=0.0)
+    step: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    # Empty until the first review; then maintained by app.srs.Scheduler.
+    stability: Mapped[Optional[float]] = mapped_column(Float)
+    difficulty: Mapped[Optional[float]] = mapped_column(Float)
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_review_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     reps: Mapped[int] = mapped_column(Integer, default=0)
