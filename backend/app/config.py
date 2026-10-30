@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+pg8000://wordpath:wordpath@localhost:5432/wordpath"
     jwt_secret: str = "change-me"
+    jwt_expire_minutes: int = 60 * 24 * 7  # one week
 
 
 settings = Settings()
