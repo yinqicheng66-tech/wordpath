@@ -1,5 +1,7 @@
 # WordPath
 
+[![CI](https://github.com/yinqicheng66-tech/wordpath/actions/workflows/ci.yml/badge.svg)](https://github.com/yinqicheng66-tech/wordpath/actions/workflows/ci.yml)
+
 A vocabulary-learning web app for Chinese speakers learning English, with spaced-repetition review (FSRS), meaning / spelling / listening quizzes, and learning statistics.
 
 > Work in progress — MVP target: mid-November 2026.
