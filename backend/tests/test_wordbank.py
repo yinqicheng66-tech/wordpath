@@ -1,15 +1,18 @@
 from pathlib import Path
 
 from app.wordbank import (
+    BOOKS,
     WordEntry,
+    book_words,
     clean_translation,
+    extract_entries,
     normalize_phonetic,
     read_wordlist,
     select_words,
     write_wordlist,
 )
 
-DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "core_1000.csv"
+DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "words.csv"
 
 
 def row(word, tag="cet4", frq="100", translation="n. 苹果", phonetic="'æpl"):
@@ -67,15 +70,60 @@ def test_select_words_respects_limit():
     assert [e.word for e in select_words(rows, limit=2)] == ["aa", "bb"]
 
 
+def test_clean_translation_strips_carriage_returns_and_inline_labels():
+    raw = "第一的\\r\\nn. 优势, [经] 利益\r\\nart. [计] 累加器"
+    assert clean_translation(raw) == "第一的\nn. 优势，利益"
+
+
+def test_extract_entries_keeps_only_exam_tags():
+    rows = [
+        row("apple", tag="zk gk cet4"),
+        row("banana", tag="unknown"),  # not an exam we know
+        row("cherry", tag="gre", frq="0"),  # kept even without frequency data
+    ]
+    entries = extract_entries(rows)
+    assert [(e.word, e.tags, e.frq) for e in entries] == [
+        ("apple", ("cet4", "gk", "zk"), 100),
+        ("cherry", ("gre",), None),
+    ]
+
+
+def test_book_words_puts_unknown_frequency_last_and_applies_limit():
+    entries = [
+        WordEntry("rare", None, "x", None, ("cet4",)),
+        WordEntry("common", None, "x", 5, ("cet4",)),
+        WordEntry("other", None, "x", 1, ("gre",)),
+    ]
+    full = next(b for b in BOOKS if b.tag == "cet4" and b.limit is None)
+    starter = next(b for b in BOOKS if b.limit is not None)
+    assert [e.word for e in book_words(entries, full)] == ["common", "rare"]
+    assert [e.word for e in book_words(entries, starter)] == ["common"]
+
+
 def test_wordlist_round_trip(tmp_path):
-    entries = [WordEntry("state", "steit", "n. 州，状态\na. 国家的", 137)]
+    entries = [
+        WordEntry("state", "steit", "n. 州，状态\na. 国家的", 137, ("cet4", "gk")),
+        WordEntry("ubiquitous", None, "a. 无所不在的", None, ("gre",)),
+    ]
     path = tmp_path / "words.csv"
     write_wordlist(entries, str(path))
     assert read_wordlist(str(path)) == entries
 
 
-def test_bundled_wordlist_has_1000_unique_words():
+def test_bundled_word_books():
     entries = read_wordlist(str(DATA_FILE))
-    assert len(entries) == 1000
-    assert len({e.word for e in entries}) == 1000
+    assert len({e.word for e in entries}) == len(entries) > 14000
     assert all(e.translation for e in entries)
+    sizes = {spec.name: len(book_words(entries, spec)) for spec in BOOKS}
+    assert sizes["四级高频 1000"] == 1000
+    assert all(n > 1000 for name, n in sizes.items() if name != "四级高频 1000")
+
+
+def test_advanced_books_put_basic_words_last():
+    entries = [
+        WordEntry("want", None, "x", 50, ("cet4", "gre", "zk")),  # very common, but basic
+        WordEntry("regime", None, "x", 3000, ("cet6", "gre")),
+        WordEntry("cite", None, "x", 4000, ("gre",)),
+    ]
+    gre = next(b for b in BOOKS if b.tag == "gre")
+    assert [e.word for e in book_words(entries, gre)] == ["regime", "cite", "want"]

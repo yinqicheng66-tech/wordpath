@@ -1,5 +1,5 @@
 """Request and response bodies for the API."""
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -37,12 +37,12 @@ class UserOut(BaseModel):
 
 
 class BookOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: int
     name: str
     description: Optional[str] = None
     word_count: int
+    learned: int  # words of this book the user has started
+    active: bool  # the book new words currently come from
 
 
 class EnrollRequest(BaseModel):
@@ -99,7 +99,25 @@ class AnswerRequest(BaseModel):
 class AnswerOut(BaseModel):
     is_correct: bool
     rating: int
+    word_id: int
     word: str
     translation: str
     state: CardState
     next_due_at: datetime
+
+
+# ----- stats -----
+
+
+class DayCountOut(BaseModel):
+    date: date
+    reviews: int
+
+
+class StatsOut(BaseModel):
+    streak_days: int
+    learned_words: int
+    mastered_words: int
+    today_reviews: int
+    today_correct: int
+    daily: List[DayCountOut]

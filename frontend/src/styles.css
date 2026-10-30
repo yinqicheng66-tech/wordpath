@@ -1,0 +1,735 @@
+/* WordPath: an exam answer sheet (答题卡) on cool white paper.
+   One bold thing per screen: the word itself. Everything else stays quiet. */
+
+:root {
+  --paper: #f3f5f8;
+  --sheet: #ffffff;
+  --ink: #23252a; /* pencil graphite */
+  --muted: #6a6f78;
+  --rule: #d8dce2;
+  --red: #cf3440; /* answer-sheet ink: bubbles and brackets only */
+  --red-tint: #fbe8ea;
+  --green: #1f7a47;
+  --green-tint: #e3f2ea;
+
+  --font-word: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans SC", "Microsoft YaHei", sans-serif;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #16181c;
+    --sheet: #1f2228;
+    --ink: #e9ebef;
+    --muted: #9aa0aa;
+    --rule: #343842;
+    --red: #f06a73;
+    --red-tint: #3a2226;
+    --green: #5cc58b;
+    --green-tint: #1d3327;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-size: 1.6rem;
+  line-height: 1.25;
+  margin: 0 0 1rem;
+  font-weight: 700;
+}
+
+p {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+input:focus-visible {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+/* ---------- layout ---------- */
+
+.page {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2.5rem;
+}
+
+.brand {
+  font-family: var(--font-word);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+.center {
+  text-align: center;
+  margin-top: 4rem;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.error {
+  color: var(--red);
+  margin: 0.5rem 0 1rem;
+}
+
+/* ---------- buttons ---------- */
+
+.primary {
+  display: inline-block;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 6px;
+  padding: 0.7rem 1.4rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.link:hover {
+  color: var(--ink);
+}
+
+/* ---------- sign in ---------- */
+
+.auth {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+  padding-top: 12vh;
+}
+
+.specimen-word {
+  font-family: var(--font-word);
+  font-weight: 800;
+  font-size: clamp(3.2rem, 14vw, 5.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  font-variation-settings: "opsz" 96;
+}
+
+.specimen-phonetic {
+  color: var(--muted);
+  margin-top: 0.6rem;
+}
+
+.specimen-meaning {
+  margin-top: 0.2rem;
+  font-size: 1.15rem;
+}
+
+.specimen-note {
+  margin-top: 1.5rem;
+  max-width: 26rem;
+  color: var(--muted);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  max-width: 22rem;
+}
+
+.auth-form h1 {
+  margin-bottom: 0.2rem;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+input[type="email"],
+input[type="password"],
+input[type="number"],
+.spell input {
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  color: var(--ink);
+}
+
+.auth-form .primary {
+  margin-top: 0.4rem;
+}
+
+.auth-form .link {
+  align-self: flex-start;
+}
+
+/* ---------- home ---------- */
+
+.today {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 2.5rem;
+}
+
+.today-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.today-line .big {
+  font-family: var(--font-word);
+  font-weight: 700;
+  font-size: 3rem;
+  line-height: 1;
+  min-width: 2.2ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.modes {
+  border: none;
+  padding: 0;
+  margin: 0 0 2rem;
+}
+
+.modes legend {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.mode {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.mode:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+
+.mode input {
+  accent-color: var(--red);
+  grid-row: span 2;
+}
+
+.mode-name {
+  font-weight: 600;
+}
+
+.mode .hint {
+  grid-column: 2;
+}
+
+.start {
+  width: 100%;
+  padding: 0.9rem;
+  font-size: 1.05rem;
+}
+
+.books ul {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 0;
+}
+
+.books li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--rule);
+}
+
+.book-name {
+  font-weight: 600;
+}
+
+.limit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.limit input {
+  width: 4.5rem;
+}
+
+/* ---------- study ---------- */
+
+.question {
+  display: flex;
+  flex-direction: column;
+}
+
+.tag-new {
+  align-self: flex-start;
+  color: var(--red);
+  border: 1px solid var(--red);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  padding: 0 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.prompt {
+  margin-bottom: 2rem;
+  min-height: 7rem;
+}
+
+.word {
+  font-family: var(--font-word);
+  font-weight: 800;
+  font-size: clamp(3rem, 15vw, 5rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variation-settings: "opsz" 96;
+  overflow-wrap: anywhere;
+}
+
+.phonetic {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--muted);
+  margin-top: 0.75rem;
+}
+
+.speaker {
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.15rem 0.7rem;
+  color: var(--ink);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.speaker.big {
+  font-size: 1.2rem;
+  padding: 1rem 1.6rem;
+  margin-top: 1.5rem;
+}
+
+.translation {
+  white-space: pre-line;
+  font-size: 1.25rem;
+  line-height: 1.6;
+}
+
+.blanks {
+  font-family: var(--font-word);
+  font-size: 1.6rem;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  margin-top: 1rem;
+}
+
+/* The answer sheet: each option is a row with a bracketed bubble. */
+.sheet {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+.sheet li + li {
+  border-top: 1px dashed var(--rule);
+}
+
+.sheet-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet-row:disabled {
+  cursor: default;
+}
+
+.bubble {
+  flex: none;
+  width: 2.4rem;
+  height: 1.35rem;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--red);
+  border-radius: 3px;
+  color: var(--red);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Hovering "pencils in" the bubble lightly, the way a student hovers before filling it. */
+.sheet-row:not(:disabled):hover .bubble {
+  background: var(--red-tint);
+}
+
+.sheet-row.correct .bubble {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--sheet);
+}
+
+.sheet-row.correct {
+  background: var(--green-tint);
+}
+
+.sheet-row.wrong .bubble {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--sheet);
+}
+
+.sheet-row.wrong .option-text,
+.sheet-row.wrong .option-word {
+  text-decoration: line-through;
+  text-decoration-color: var(--red);
+}
+
+.option-word {
+  font-family: var(--font-word);
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.spell {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.spell input {
+  flex: 1;
+  font-family: var(--font-word);
+  font-size: 1.4rem;
+  min-width: 0;
+}
+
+.skip {
+  align-self: center;
+  margin-top: 1.25rem;
+}
+
+.feedback {
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.25rem 1.4rem;
+  border-left: 4px solid var(--green);
+  background: var(--sheet);
+  border-radius: 0 8px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.feedback.wrong {
+  border-left-color: var(--red);
+}
+
+.verdict {
+  font-weight: 700;
+  color: var(--green);
+}
+
+.feedback.wrong .verdict {
+  color: var(--red);
+}
+
+.feedback-word {
+  font-family: var(--font-word);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.feedback .primary {
+  margin-top: 0.8rem;
+  align-self: flex-start;
+}
+
+.done {
+  margin-top: 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.done p {
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .feedback {
+    animation: settle 180ms ease-out;
+  }
+
+  @keyframes settle {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+}
+
+/* ---------- stats ---------- */
+
+.stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "streak list"
+    "days days"
+    "caption caption";
+  column-gap: 1.5rem;
+  row-gap: 0.75rem;
+  margin-bottom: 2.25rem;
+}
+
+.streak {
+  grid-area: streak;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.streak-number {
+  font-family: var(--font-word);
+  font-weight: 800;
+  font-size: 3.6rem;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.streak-label {
+  font-weight: 600;
+}
+
+.stat-list {
+  grid-area: list;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.25rem;
+  margin: 0;
+  align-self: end;
+}
+
+.stat-list dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.stat-list dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.days {
+  grid-area: days;
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 4px;
+  height: 44px;
+  align-items: end;
+  border-bottom: 1px solid var(--rule);
+}
+
+.day {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.day-bar {
+  width: 100%;
+  min-height: 2px;
+  background: var(--muted);
+  opacity: 0.45;
+  border-radius: 2px 2px 0 0;
+}
+
+.today-bar .day-bar {
+  background: var(--ink);
+  opacity: 1;
+}
+
+.days-caption {
+  grid-area: caption;
+  font-size: 0.8rem;
+}
+
+/* ---------- current book & progress ---------- */
+
+.current-book {
+  margin-bottom: 1.75rem;
+}
+
+.current-book-head,
+.books-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+
+.progress-track {
+  flex: 1;
+  height: 6px;
+  background: var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--ink);
+}
+
+.progress .hint {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.book-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.book-count {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
+.books li.active {
+  box-shadow: inset 3px 0 0 var(--ink);
+  padding-left: 0.85rem;
+}
+
+.books .limit {
+  margin-top: 1rem;
+}
+
+.secondary {
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.7rem 1.4rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- spelling feedback ---------- */
+
+.typed {
+  color: var(--muted);
+}
+
+.diff {
+  font-family: var(--font-word);
+  font-size: 1.15rem;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.diff-miss {
+  color: var(--red);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 380px) {
+  .stats {
+    grid-template-columns: 1fr;
+    grid-template-areas: "streak" "list" "days" "caption";
+  }
+
+  .stat-list {
+    justify-content: flex-start;
+  }
+}

@@ -79,6 +79,7 @@ def answer(
     return AnswerOut(
         is_correct=result.is_correct,
         rating=int(result.rating),
+        word_id=result.word_id,
         word=result.word,
         translation=result.translation,
         state=result.state,

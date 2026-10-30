@@ -89,6 +89,8 @@ class UserBook(Base):
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # New words come from the user's one active book.
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Card(Base):

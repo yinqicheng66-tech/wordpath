@@ -6,9 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_now
 from app.db import get_db
-from app.models import BookWord, User, WordBook
+from app.models import BookWord, Card, User, WordBook
 from app.schemas import BookOut, EnrollmentOut, EnrollRequest
 from app.services import study
+from app.srs import CardState
 
 router = APIRouter(prefix="/books", tags=["books"])
 
@@ -23,8 +24,24 @@ def list_books(
         .group_by(WordBook.id)
         .order_by(WordBook.id)
     ).all()
+    learned = dict(
+        db.execute(
+            select(BookWord.book_id, func.count())
+            .join(Card, Card.word_id == BookWord.word_id)
+            .where(Card.user_id == user.id, Card.state != CardState.new)
+            .group_by(BookWord.book_id)
+        ).all()
+    )
+    active = study.active_enrollment(db, user)
     return [
-        BookOut(id=b.id, name=b.name, description=b.description, word_count=n)
+        BookOut(
+            id=b.id,
+            name=b.name,
+            description=b.description,
+            word_count=n,
+            learned=learned.get(b.id, 0),
+            active=active is not None and active.book_id == b.id,
+        )
         for b, n in rows
     ]
 

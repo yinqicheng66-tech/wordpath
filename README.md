@@ -39,6 +39,28 @@ A vocabulary-learning web app for Chinese speakers learning English, with spaced
 
 Then open http://localhost:8000/docs.
 
+3. In a second terminal, start the frontend:
+
+   ```bash
+   cd frontend
+   npm install   # first time only
+   npm run dev
+   ```
+
+   Open http://localhost:5173. Requests to `/api` are forwarded to the backend on port 8000.
+
+## Deploy
+
+| Part | Host | Settings |
+| --- | --- | --- |
+| Database | [Neon](https://neon.tech) (free Postgres) | copy the connection string |
+| Backend | [Render](https://render.com) | New → Blueprint, pick this repo (`render.yaml`); set `DATABASE_URL` and `CORS_ORIGINS` |
+| Frontend | [Vercel](https://vercel.com) | Root directory `frontend`; environment variable `VITE_API_URL` = the Render URL |
+
+The backend runs migrations and imports the word books every time it starts.
+Render's free plan sleeps after 15 minutes without traffic, so the first request
+after a pause takes about a minute.
+
 ## Run tests
 
 ```bash

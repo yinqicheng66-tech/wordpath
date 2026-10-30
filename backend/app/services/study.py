@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, time, timezone
 from typing import List, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -48,24 +48,25 @@ def start_of_local_day(now: datetime, tz_name: str) -> datetime:
 
 
 def active_enrollment(db: Session, user: User) -> Optional[UserBook]:
-    """The word book the user picked most recently."""
+    """The word book new words currently come from."""
     return db.scalar(
-        select(UserBook)
-        .where(UserBook.user_id == user.id)
-        .order_by(UserBook.started_at.desc())
-        .limit(1)
+        select(UserBook).where(UserBook.user_id == user.id, UserBook.is_active)
     )
 
 
 def enroll(
     db: Session, user: User, book_id: int, daily_new_limit: int, now: datetime
 ) -> UserBook:
+    """Make `book_id` the user's active book. Progress in other books is kept."""
+    db.execute(
+        update(UserBook).where(UserBook.user_id == user.id).values(is_active=False)
+    )
     enrollment = db.get(UserBook, (user.id, book_id))
     if enrollment is None:
-        enrollment = UserBook(user_id=user.id, book_id=book_id)
+        enrollment = UserBook(user_id=user.id, book_id=book_id, started_at=now)
         db.add(enrollment)
     enrollment.daily_new_limit = daily_new_limit
-    enrollment.started_at = now  # makes it the active book
+    enrollment.is_active = True
     db.flush()
     return enrollment
 
@@ -257,6 +258,48 @@ def is_correct_answer(
     return choice_word_id == word.id
 
 
+# Response times (milliseconds) used to tell "easy" and "hard" apart.
+FAST_CHOICE_MS = 2500
+SLOW_CHOICE_MS = 8000
+IGNORE_AFTER_MS = 60_000  # longer than this: the user probably stepped away
+
+
+def infer_rating(
+    correct: bool,
+    quiz_type: QuizType,
+    response_ms: Optional[int],
+    state: CardState,
+    word_length: int,
+    self_rating: Optional[int] = None,
+) -> Rating:
+    """Turn an answer into an FSRS rating without asking the user.
+
+    Wrong is always AGAIN. A right answer becomes EASY when it was quick,
+    HARD when it was slow, otherwise GOOD. Spelling gets more time for
+    longer words. Words still being learned are never rated EASY, so a
+    lucky fast guess on a new word can't skip the short learning steps.
+    An explicit rating from the user wins.
+    """
+    if not correct:
+        return Rating.AGAIN
+    if self_rating:
+        return Rating(self_rating)
+    if response_ms is None or response_ms > IGNORE_AFTER_MS:
+        return Rating.GOOD
+
+    if quiz_type == QuizType.spelling:
+        fast, slow = 1500 + 300 * word_length, 6000 + 1000 * word_length
+    else:
+        fast, slow = FAST_CHOICE_MS, SLOW_CHOICE_MS
+
+    if response_ms >= slow:
+        return Rating.HARD
+    still_learning = state in (CardState.new, CardState.learning)
+    if response_ms <= fast and not still_learning:
+        return Rating.EASY
+    return Rating.GOOD
+
+
 def _to_memory(card: Card) -> MemoryState:
     return MemoryState(
         state=card.state,
@@ -272,6 +315,7 @@ def _to_memory(card: Card) -> MemoryState:
 class AnswerResult:
     is_correct: bool
     rating: Rating
+    word_id: int
     word: str
     translation: str
     state: CardState
@@ -296,11 +340,9 @@ def submit_answer(
     word = db.get(Word, card.word_id)
 
     correct = is_correct_answer(word, quiz_type, choice_word_id, spelling)
-    # A wrong answer always counts as "forgot". A right answer uses the
-    # user's own rating (hard / good / easy), defaulting to good.
-    rating = Rating(self_rating) if correct and self_rating else Rating.GOOD
-    if not correct:
-        rating = Rating.AGAIN
+    rating = infer_rating(
+        correct, quiz_type, response_ms, card.state, len(word.word), self_rating
+    )
 
     was_review = card.state == CardState.review
     memory = scheduler.review(_to_memory(card), rating, now)
@@ -329,6 +371,7 @@ def submit_answer(
     return AnswerResult(
         is_correct=correct,
         rating=rating,
+        word_id=word.id,
         word=word.word,
         translation=word.translation,
         state=memory.state,

@@ -4,9 +4,9 @@ import pytest
 from sqlalchemy import select
 
 from app.importer import import_words
-from app.models import Card, ReviewLog
-from app.services.study import start_of_local_day
-from app.srs import CardState
+from app.models import Card, QuizType, ReviewLog
+from app.services.study import infer_rating, start_of_local_day
+from app.srs import CardState, Rating
 from app.wordbank import WordEntry
 
 WORDS = [
@@ -76,9 +76,28 @@ def test_list_books_counts_words(client, book_id):
     headers = login(client)
     books = client.get("/api/books", headers=headers).json()
     assert books == [
-        {"id": book_id, "name": "核心 1000 词", "description": books[0]["description"],
-         "word_count": 6}
+        {"id": book_id, "name": "四级高频 1000", "description": books[0]["description"],
+         "word_count": 6, "learned": 0, "active": False}
     ]
+
+
+def test_books_show_progress_and_active_book(client, user, book_id):
+    answer(client, user, next_q(client, user)["question"])
+    (book,) = client.get("/api/books", headers=user).json()
+    assert book["active"] is True
+    assert book["learned"] == 1
+
+
+def test_switching_books_changes_where_new_words_come_from(client, user, book_id):
+    with client.SessionLocal() as db:
+        other = import_words(
+            db, [WordEntry("zebra", None, "n. 斑马", 9000)], book_name="其他"
+        ).id
+        db.commit()
+    client.post(f"/api/books/{other}/enroll", json={"daily_new_limit": 5}, headers=user)
+    assert next_q(client, user)["question"]["prompt"] == "zebra"
+    actives = {b["name"]: b["active"] for b in client.get("/api/books", headers=user).json()}
+    assert actives == {"四级高频 1000": False, "其他": True}
 
 
 def test_enroll_unknown_book_is_404(client):
@@ -152,6 +171,7 @@ def test_correct_answer_moves_to_ten_minute_step(client, user, clock):
     assert result["rating"] == 3
     assert result["state"] == "learning"
     assert result["word"] == "state"
+    assert result["word_id"] == correct_option(client, q)
     due = datetime.fromisoformat(result["next_due_at"].replace("Z", "+00:00"))
     assert (due - clock.now).total_seconds() == 600
 
@@ -280,3 +300,40 @@ def test_start_of_local_day_uses_user_time_zone():
 def test_unknown_time_zone_falls_back_to_utc():
     now = datetime(2026, 11, 3, 1, 0, tzinfo=timezone.utc)
     assert start_of_local_day(now, "Mars/Base") == datetime(2026, 11, 3, tzinfo=timezone.utc)
+
+
+# ----- automatic rating from response time -----
+
+REVIEW, NEW = CardState.review, CardState.new
+
+
+@pytest.mark.parametrize(
+    "correct, quiz, ms, state, expected",
+    [
+        (False, QuizType.meaning, 500, REVIEW, Rating.AGAIN),
+        (True, QuizType.meaning, None, REVIEW, Rating.GOOD),
+        (True, QuizType.meaning, 1200, REVIEW, Rating.EASY),
+        (True, QuizType.meaning, 4000, REVIEW, Rating.GOOD),
+        (True, QuizType.meaning, 9000, REVIEW, Rating.HARD),
+        (True, QuizType.meaning, 120_000, REVIEW, Rating.GOOD),  # stepped away
+        (True, QuizType.meaning, 1200, NEW, Rating.GOOD),  # new words never "easy"
+        (True, QuizType.meaning, 9000, NEW, Rating.HARD),
+        (True, QuizType.spelling, 2500, REVIEW, Rating.EASY),  # 5 letters: 3s is fast
+        (True, QuizType.spelling, 9000, REVIEW, Rating.GOOD),
+        (True, QuizType.spelling, 12_000, REVIEW, Rating.HARD),
+    ],
+)
+def test_infer_rating(correct, quiz, ms, state, expected):
+    assert infer_rating(correct, quiz, ms, state, word_length=5) == expected
+
+
+def test_self_rating_wins_when_correct():
+    assert infer_rating(True, QuizType.meaning, 9000, REVIEW, 5, self_rating=4) == Rating.EASY
+
+
+def test_slow_correct_answer_is_rated_hard_by_api(client, user):
+    q = next_q(client, user)["question"]
+    body = {"card_id": q["card_id"], "quiz_type": "meaning",
+            "choice_word_id": correct_option(client, q), "response_ms": 15000}
+    r = client.post("/api/study/answer", json=body, headers=user)
+    assert r.json()["rating"] == 2

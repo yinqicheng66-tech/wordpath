@@ -1,0 +1,20 @@
+# Render blueprint for the backend API: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: wordpath-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # Migrations and the word import are safe to run on every start.
+    startCommand: alembic upgrade head && python -m app.importer && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL
+        sync: false # paste the Neon connection string
+      - key: CORS_ORIGINS
+        sync: false # the Vercel site, e.g. https://wordpath.vercel.app
+      - key: JWT_SECRET
+        generateValue: true

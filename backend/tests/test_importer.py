@@ -4,9 +4,9 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from app.db import Base
-from app.importer import import_words
+from app.importer import import_all_books, import_words
 from app.models import BookWord, Word, WordBook
-from app.wordbank import WordEntry
+from app.wordbank import BOOKS, WordEntry
 
 
 @pytest.fixture
@@ -57,3 +57,42 @@ def test_reimport_updates_translation(session):
     assert state.translation == "n. 状态"
     # the book now only lists the words from the latest import
     assert count(session, BookWord) == 1
+
+
+TAGGED = [
+    WordEntry("state", "steit", "n. 州，状态", 137, ("cet4", "gk", "zk")),
+    WordEntry("might", "mait", "aux. 可能，也许", 175, ("cet4", "gk")),
+    WordEntry("ubiquitous", None, "a. 无所不在的", None, ("gre",)),
+]
+
+
+def book_contents(session, name):
+    return session.scalars(
+        select(Word.word)
+        .join(BookWord, BookWord.word_id == Word.id)
+        .join(WordBook, WordBook.id == BookWord.book_id)
+        .where(WordBook.name == name)
+        .order_by(BookWord.position)
+    ).all()
+
+
+def test_import_all_books_shares_words_between_books(session):
+    books = import_all_books(session, TAGGED)
+
+    assert len(books) == len(BOOKS)
+    assert count(session, Word) == 3  # each word stored once
+    assert book_contents(session, "中考词汇") == ["state"]
+    # "state" is also a 中考 word, so the 高考 book shows it after "might"
+    assert book_contents(session, "高考词汇") == ["might", "state"]
+    assert book_contents(session, "GRE 词汇") == ["ubiquitous"]
+    # the starter book only takes words with frequency data
+    assert book_contents(session, "四级高频 1000") == ["state", "might"]
+
+
+def test_import_all_books_renames_the_old_core_book(session):
+    old = import_words(session, ENTRIES, book_name="核心 1000 词")
+    import_all_books(session, TAGGED)
+
+    assert old.name == "四级高频 1000"
+    assert session.scalar(select(WordBook).where(WordBook.name == "核心 1000 词")) is None
+    assert count(session, WordBook) == len(BOOKS)
