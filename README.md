@@ -4,14 +4,22 @@
 
 A vocabulary-learning web app for Chinese speakers learning English, with spaced-repetition review (FSRS), meaning / spelling / listening quizzes, and learning statistics.
 
-> Work in progress — MVP target: mid-November 2026.
+**Live demo: https://wordpath-bice.vercel.app** (the backend runs on a free plan and may take ~50 s to wake up on the first request)
+
+### Highlights
+
+- **FSRS-6 spaced repetition**, ported from the reference implementation (py-fsrs) to dependency-free pure functions that run on Python 3.9, and checked against it on 25,000+ reviews
+- **Ratings inferred from response time**: fast correct answers stretch the next interval, slow ones shorten it, with no extra clicks
+- **9 word books, 14,624 words** cleaned from the open ECDICT dictionary; advanced books put words the learner already knows from easier syllabuses last
+- **103 backend tests** and a frontend build check on every push (GitHub Actions)
 
 ## Tech stack
 
-- **Frontend:** React, TypeScript, Vite, Tailwind CSS
+- **Frontend:** React, TypeScript, Vite, plain CSS (light and dark themes)
 - **Backend:** Python, FastAPI, SQLAlchemy, Alembic
-- **Database:** PostgreSQL
-- **Tooling:** Docker Compose, GitHub Actions, pytest, Vitest
+- **Database:** PostgreSQL (Neon in production)
+- **Hosting:** Vercel (frontend), Render (backend)
+- **Tooling:** pytest, TypeScript strict mode, GitHub Actions
 
 ## Run the backend locally
 
