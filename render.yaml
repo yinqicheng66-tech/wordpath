@@ -4,6 +4,7 @@ services:
     name: wordpath-api
     runtime: python
     plan: free
+    region: virginia # same region as the Neon database
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     # Migrations and the word import are safe to run on every start.
