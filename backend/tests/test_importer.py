@@ -96,3 +96,32 @@ def test_import_all_books_renames_the_old_core_book(session):
     assert old.name == "四级高频 1000"
     assert session.scalar(select(WordBook).where(WordBook.name == "核心 1000 词")) is None
     assert count(session, WordBook) == len(BOOKS)
+
+
+def test_import_uses_few_database_round_trips(session):
+    """The production database is across the network, where every round trip
+    costs ~10 ms. Row-by-row inserts of ~58k rows once timed out the deploy."""
+    from sqlalchemy import event
+
+    entries = [
+        WordEntry(f"word{i}", None, f"n. 词{i}", i + 1, ("cet4", "gk", "zk"))
+        for i in range(2000)
+    ]
+    calls = {"n": 0}
+
+    def count(conn, cursor, statement, params, context, executemany):
+        calls["n"] += len(params) if executemany else 1
+
+    engine = session.get_bind()
+    event.listen(engine, "before_cursor_execute", count)
+    try:
+        import_all_books(session, entries)
+        first = calls["n"]
+        calls["n"] = 0
+        import_all_books(session, entries)  # nothing changed
+        again = calls["n"]
+    finally:
+        event.remove(engine, "before_cursor_execute", count)
+
+    assert first < 100  # ~6,000 rows written in batches
+    assert again < 50  # unchanged data is only read

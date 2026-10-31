@@ -13,7 +13,7 @@ import argparse
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -40,32 +40,53 @@ def _chunks(items: Sequence, size: int = CHUNK) -> Iterable[Sequence]:
         yield items[i : i + size]
 
 
-def upsert_words(session: Session, entries: Iterable[WordEntry]) -> Dict[str, Word]:
-    """Insert new words and update existing ones. Returns {word text: Word}."""
-    entries = list(entries)
-    existing: Dict[str, Word] = {}
-    for chunk in _chunks([e.word for e in entries]):
-        for w in session.scalars(select(Word).where(Word.word.in_(chunk))):
-            existing[w.word] = w
+def upsert_words(session: Session, entries: Iterable[WordEntry]) -> Dict[str, int]:
+    """Insert new words and update changed ones. Returns {word text: word id}.
 
-    words: Dict[str, Word] = {}
+    Written for a database across the network: rows are sent CHUNK at a time
+    in one multi-row INSERT, and unchanged words are not written at all, so a
+    re-import with nothing new costs only the reads.
+    """
+    entries = list(entries)
+    ids: Dict[str, int] = {}
+    current: Dict[str, tuple] = {}
+    for chunk in _chunks([e.word for e in entries]):
+        rows = session.execute(
+            select(Word.id, Word.word, Word.phonetic, Word.translation, Word.frq).where(
+                Word.word.in_(chunk)
+            )
+        )
+        for id_, word, phonetic, translation, frq in rows:
+            ids[word] = id_
+            current[word] = (phonetic, translation, frq)
+
+    new_rows = []
     for e in entries:
-        word = existing.get(e.word)
-        if word is None:
-            word = Word(word=e.word)
-            session.add(word)
-        word.phonetic = e.phonetic
-        word.translation = e.translation
-        word.frq = e.frq
-        words[e.word] = word
-    session.flush()  # assigns ids to new words
-    return words
+        values = (e.phonetic, e.translation, e.frq)
+        if e.word not in ids:
+            new_rows.append(
+                {"word": e.word, "phonetic": e.phonetic, "translation": e.translation, "frq": e.frq}
+            )
+        elif current[e.word] != values:  # rare: the dictionary data was corrected
+            session.execute(
+                update(Word)
+                .where(Word.id == ids[e.word])
+                .values(phonetic=e.phonetic, translation=e.translation, frq=e.frq)
+            )
+
+    for chunk in _chunks(new_rows):
+        inserted = session.execute(
+            insert(Word).values(list(chunk)).returning(Word.id, Word.word)
+        )
+        for id_, word in inserted:
+            ids[word] = id_
+    return ids
 
 
 def build_book(
-    session: Session, name: str, description: str, words: List[Word]
+    session: Session, name: str, description: str, word_ids: List[int]
 ) -> WordBook:
-    """Create or update a book so it lists exactly `words`, in this order."""
+    """Create or update a book so it lists exactly `word_ids`, in this order."""
     book = session.scalar(select(WordBook).where(WordBook.name == name))
     if book is None:
         book = WordBook(name=name)
@@ -73,13 +94,24 @@ def build_book(
     book.description = description
     session.flush()
 
+    current = session.scalars(
+        select(BookWord.word_id)
+        .where(BookWord.book_id == book.id)
+        .order_by(BookWord.position)
+    ).all()
+    if list(current) == list(word_ids):
+        return book  # already up to date
+
     session.execute(delete(BookWord).where(BookWord.book_id == book.id))
-    for n, chunk in enumerate(_chunks(words)):
-        session.add_all(
-            BookWord(book_id=book.id, word_id=w.id, position=n * CHUNK + i + 1)
-            for i, w in enumerate(chunk)
+    for n, chunk in enumerate(_chunks(word_ids)):
+        session.execute(
+            insert(BookWord).values(
+                [
+                    {"book_id": book.id, "word_id": word_id, "position": n * CHUNK + i + 1}
+                    for i, word_id in enumerate(chunk)
+                ]
+            )
         )
-        session.flush()
     return book
 
 
@@ -90,10 +122,8 @@ def import_words(
     book_description: str = "",
 ) -> WordBook:
     """Import `entries` as a single book, in the given order."""
-    words = upsert_words(session, entries)
-    return build_book(
-        session, book_name, book_description, [words[e.word] for e in entries]
-    )
+    ids = upsert_words(session, entries)
+    return build_book(session, book_name, book_description, [ids[e.word] for e in entries])
 
 
 def import_all_books(session: Session, entries: List[WordEntry]) -> List[WordBook]:
@@ -103,10 +133,10 @@ def import_all_books(session: Session, entries: List[WordEntry]) -> List[WordBoo
         taken = session.scalar(select(WordBook).where(WordBook.name == new))
         if book is not None and taken is None:
             book.name = new
-    words = upsert_words(session, entries)
+    ids = upsert_words(session, entries)
     books = []
     for spec in BOOKS:
-        ordered = [words[e.word] for e in book_words(entries, spec)]
+        ordered = [ids[e.word] for e in book_words(entries, spec)]
         books.append(build_book(session, spec.name, spec.description, ordered))
     return books
 
