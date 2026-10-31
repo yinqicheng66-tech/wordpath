@@ -29,3 +29,18 @@ def test_sqlite_is_left_alone():
 
 def test_in_memory_sqlite_is_left_alone():
     assert engine_args("sqlite://") == ("sqlite://", {})
+
+
+def test_url_pasted_without_scheme_is_repaired():
+    url, args = engine_args("//u:p@ep-x.aws.neon.tech/db?sslmode=require")
+    assert url == "postgresql+pg8000://u:p@ep-x.aws.neon.tech/db"
+    assert "ssl_context" in args
+
+
+def test_unusable_url_error_does_not_leak_password():
+    try:
+        engine_args("neondb_owner@host/db?password=secret-password")
+    except ValueError as e:
+        assert "secret-password" not in str(e)
+    else:
+        raise AssertionError("expected ValueError")

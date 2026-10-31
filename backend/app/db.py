@@ -17,7 +17,15 @@ _SSL_MODES_THAT_ENCRYPT = {"require", "verify-ca", "verify-full"}
 
 def engine_args(url: str) -> Tuple[str, Dict[str, Any]]:
     """Return (SQLAlchemy URL, connect_args) for a database URL from any provider."""
+    url = url.strip()
+    if url.startswith("//"):  # pasted without the leading "postgresql:"
+        url = "postgresql:" + url
     parts = urlsplit(url)
+    if not parts.scheme:
+        # Don't echo the URL: it usually contains the database password.
+        raise ValueError(
+            "DATABASE_URL must start with postgresql:// (check that it was pasted in full)"
+        )
     if not parts.scheme.startswith("postgres"):
         return url, {}  # e.g. SQLite in tests
     scheme = parts.scheme
